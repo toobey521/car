@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>🏎️ 赛车闯关 - toobey</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:Arial,sans-serif;overflow:hidden}
+.game-wrapper{position:relative}
+canvas{display:block;border:3px solid #e94560;border-radius:8px;background:#2d2d44}
+
+.page{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(10,10,30,0.95);color:#fff;z-index:30;border-radius:8px}
+.page h1{font-size:38px;margin-bottom:4px}
+.page .sub{color:#888;font-size:14px;margin-bottom:20px}
+.level-btn{width:210px;padding:14px;margin:5px;font-size:17px;border:none;border-radius:8px;cursor:pointer;transition:transform .2s}
+.level-btn:hover{transform:scale(1.05)}
+.level-btn.locked{opacity:0.4;cursor:not-allowed;background:#555;color:#999}
+.level-btn.locked:hover{transform:none}
+.l1{background:#4ecdc4;color:#fff}
+.l2{background:#45b7d1;color:#fff}
+.l3{background:#e94560;color:#fff}
+
+.btn-bar{position:absolute;top:52px;right:8px;display:flex;flex-direction:column;gap:5px;z-index:10}
+.btn-bar button{padding:5px 12px;font-size:11px;border:none;border-radius:4px;cursor:pointer;font-weight:bold}
+.btn-pause{background:#ffd93d;color:#333}
+.btn-restart{background:#e94560;color:#fff}
+.btn-home{background:#a29bfe;color:#fff}
+
+.celebration{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.75);z-index:20;border-radius:8px}
+.celebration h2{font-size:36px;color:#ffd93d;margin:4px 0}
+.celebration .big{font-size:60px}
+.celebration button{padding:10px 36px;font-size:18px;border:none;border-radius:8px;cursor:pointer;background:#4ecdc4;color:#fff;font-weight:bold;margin-top:10px}
+
+.pause-overlay{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.7);z-index:15;border-radius:8px}
+.pause-overlay h2{font-size:36px;color:#ffd93d}
+
+.win-page{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;align-items:center;background:rgba(10,10,30,0.95);color:#fff;z-index:35;border-radius:8px}
+.win-page h1{font-size:36px}
+.dance-area{width:300px;height:100px;position:relative;margin:12px 0;overflow:hidden}
+.dance-car{position:absolute;font-size:40px;animation:danceMove .3s infinite alternate}
+@keyframes danceMove{0%{transform:translateY(0) rotate(-5deg)}100%{transform:translateY(-15px) rotate(5deg)}}
+.dance-car2{position:absolute;font-size:40px;animation:danceMove2 .4s infinite alternate}
+@keyframes danceMove2{0%{transform:translateX(0) rotate(0deg)}100%{transform:translateX(30px) rotate(10deg)}}
+.dance-car3{position:absolute;font-size:40px;animation:danceMove3 .35s infinite alternate}
+@keyframes danceMove3{0%{transform:translateY(0) scale(1)}100%{transform:translateY(-20px) scale(1.2)}}
+.win-page .btn{margin-top:8px;padding:10px 30px;font-size:16px;background:#e94560;color:#fff;border:none;border-radius:6px;cursor:pointer}
+
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:5px 10px;color:#fff;font-size:13px;font-weight:bold;pointer-events:none;z-index:10}
+.hud span{background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="game-wrapper" id="wrapper">
+<canvas id="gc" width="420" height="620"></canvas>
+<div class="hud">
+<span style="color:#ff6b6b;" id="hLives">♥ 99</span>
+<span style="color:#4ecdc4;" id="hSpeed">⚡ 100%</span>
+<span style="color:#ffd93d;" id="hLevel">🏁 1</span>
+<span style="color:#6bcbff;" id="hScore">⭐ 0</span>
+<span style="color:#ffd93d;" id="hTime">⏱ 120s</span>
+</div>
+
+<div class="page" id="homePage">
+<h1><span style="color:#e94560;">🏎️</span> 赛车闯关</h1>
+<p class="sub">← → 移动 &nbsp; ↑ 加速 &nbsp; ↓ 刹车 &nbsp; ESC暂停</p>
+<div style="display:flex;flex-direction:column;align-items:center">
+<button class="level-btn l1" id="bL1">🏁 第一关 · 新手赛道</button>
+<button class="level-btn l2" id="bL2">🔒 第二关 (未解锁)</button>
+<button class="level-btn l3" id="bL3">🔒 第三关 (未解锁)</button>
+</div>
+<p class="sub" style="margin-top:10px;font-size:12px;color:#666">需依次通关解锁下一关</p>
+<div style="margin-top:10px;padding:10px 20px;background:rgba(233,69,96,0.12);border:1px solid rgba(233,69,96,0.3);border-radius:8px;max-width:260px;text-align:center">
+<p style="color:#e94560;font-size:12px;font-weight:bold;">⚠️ 健康游戏提醒</p>
+<p style="color:#888;font-size:11px;margin-top:4px;line-height:1.5">合理安排游戏时间 · 注意视力保护<br>每天建议不超过1小时 · 未成年人防沉迷<br>连续游戏30分钟建议休息5分钟</p>
+</div>
+</div>
+
+<div class="celebration" id="celebPage">
+<div class="big">🎉</div>
+<h2 id="cTitle">通过！</h2>
+<p id="cMsg" style="color:#aaa;font-size:13px;margin-bottom:8px"></p>
+<button id="nextBtn">➡️ 下一关</button>
+</div>
+
+<div class="pause-overlay" id="pausePage">
+<h2>⏸ 已暂停</h2>
+<p style="color:#aaa;margin-top:4px;font-size:14px">按 ESC 继续</p>
+</div>
+
+<div class="win-page" id="winPage">
+<h1>🏆 全部通关！</h1>
+<p style="color:#888">汽车跳舞庆祝 🕺</p>
+<div class="dance-area">
+<span class="dance-car" style="left:20px">🚗</span>
+<span class="dance-car2" style="left:100px">🚙</span>
+<span class="dance-car3" style="left:180px">🏎️</span>
+</div>
+<p style="color:#ffd93d;font-size:24px">🎉 恭喜！🎉</p>
+<button class="btn" id="bHome">返回主页</button>
+</div>
+
+<div class="btn-bar">
+<button class="btn-pause" id="btnPause">⏸ 暂停</button>
+<button class="btn-restart" id="btnRestart">🔄 重来</button>
+<button class="btn-home" id="btnHome">🏠 主页</button>
+</div>
+</div>
+
+<script>
+// ============ SETUP ============
+var W=420,H=620,ctx=document.getElementById('gc').getContext('2d');
+var $=function(id){return document.getElementById(id);};
+var hL=$('hLives'),hS=$('hSpeed'),hLv=$('hLevel'),hSc=$('hScore'),hT=$('hTime');
+var homePage=$('homePage'),celebPage=$('celebPage'),cTitle=$('cTitle'),cMsg=$('cMsg');
+var nextBtn=$('nextBtn'),pausePage=$('pausePage'),winPage=$('winPage');
+
+// ============ AUDIO ============
+var actx=null;
+function beep(f,d,t,v){
+  try{
+    if(!actx) actx=new(window.AudioContext||window.webkitAudioContext)();
+    var o=actx.createOscillator(),g=actx.createGain();
+    o.type=t||'square';o.frequency.value=f;
+    g.gain.value=v||0.06;
+    g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+d);
+    o.connect(g);g.connect(actx.destination);
+    o.start();o.stop(actx.currentTime+d);
+  }catch(e){}
+}
+var mu=null;
+function playM(lv){
+  stopM();
+  var mel=[[262,294,330,349,392,349,330,294],[330,349,392,440,523,440,392,349],[392,440,494,523,587,523,494,440]];
+  var ns=mel[lv-1]||mel[0],i=0;
+  mu=setInterval(function(){
+    if(game.p||!game.r)return;
+    beep(ns[i%ns.length],0.18,'square',0.04);
+    beep(ns[i%ns.length]*0.5,0.18,'triangle',0.02);
+    i++;
+  },190);
+}
+function stopM(){if(mu){clearInterval(mu);mu=null;}}
+
+// ============ STATE ============
+var game={r:false,p:false,l:1,hp:99,sc:0,tl:120,un:[true,false,false],sb:0};
+var px=W/2-22,py=510,pw=44,ph=72;
+var enemies=[],fc=0,ro=0,keys={l:false,r:false,u:false,d:false};
+var cfg=[{bs:2,sr:38,me:4,ts:300,tm:120},{bs:3.5,sr:28,me:6,ts:600,tm:150},{bs:5,sr:18,me:8,ts:1200,tm:180}];
+var gid=null;
+
+// ============ CAR DRAWING ============
+var carColors=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e84393','#00b894','#6c5ce7','#fd79a8','#00cec9','#d63031','#0984e3','#fdcb6e','#e17055'];
+
+function drawCar(x,y,w,h,isPlayer){
+  var c=isPlayer?'#e94560':carColors[Math.floor(Math.random()*carColors.length)];
+  var bodyColor=isPlayer?'#e94560':carColors[Math.floor(Math.random()*carColors.length)];
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  rnd(ctx,x+2,y+3,w,h,6);ctx.fill();
+  // Body
+  ctx.fillStyle=bodyColor;
+  rnd(ctx,x,y,w,h,6);ctx.fill();
+  // Body highlight
+  var grd=ctx.createLinearGradient(x,y,x,y+h);
+  grd.addColorStop(0,'rgba(255,255,255,0.25)');
+  grd.addColorStop(0.3,'rgba(255,255,255,0.05)');
+  grd.addColorStop(0.7,'rgba(0,0,0,0.1)');
+  grd.addColorStop(1,'rgba(0,0,0,0.2)');
+  ctx.fillStyle=grd;
+  rnd(ctx,x,y,w,h,6);ctx.fill();
+  // Roof / cabin
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  rnd(ctx,x+4,y+h*0.15,w-8,h*0.45,4);ctx.fill();
+  // Windshield (front)
+  ctx.fillStyle='rgba(135,206,235,0.7)';
+  rnd(ctx,x+6,y+h*0.17,w-12,h*0.18,3);ctx.fill();
+  // Rear window
+  ctx.fillStyle='rgba(135,206,235,0.5)';
+  rnd(ctx,x+8,y+h*0.35,w-16,h*0.12,2);ctx.fill();
+  // Front bumper detail
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  ctx.fillRect(x+3,y+h-4,w-6,2);
+  // Headlights
+  ctx.fillStyle='#ffeaa7';
+  ctx.beginPath();ctx.arc(x+7,y+4,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(x+w-7,y+4,4,0,Math.PI*2);ctx.fill();
+  // Tail lights
+  ctx.fillStyle='#ff4757';
+  ctx.fillRect(x+3,y+h-5,8,3);
+  ctx.fillRect(x+w-11,y+h-5,8,3);
+  // Wheels
+  ctx.fillStyle='#2d3436';
+  ctx.fillRect(x-3,y+7,5,18);ctx.fillRect(x+w-2,y+7,5,18);
+  ctx.fillRect(x-3,y+h-22,5,18);ctx.fillRect(x+w-2,y+h-22,5,18);
+  // Wheel rims
+  ctx.fillStyle='#636e72';
+  ctx.fillRect(x-1,y+10,3,12);ctx.fillRect(x+w-2,y+10,3,12);
+  ctx.fillRect(x-1,y+h-19,3,12);ctx.fillRect(x+w-2,y+h-19,3,12);
+  // Racing stripe (player only)
+  if(isPlayer){
+    ctx.fillStyle='rgba(255,255,255,0.3)';
+    ctx.fillRect(x+w/2-2,y+6,4,h-12);
+  }
+}
+
+// ============ GAME FUNCTIONS ============
+function updBtn(){
+  ['bL1','bL2','bL3'].forEach(function(id,i){
+    var b=$(id);
+    if(game.un[i]){
+      b.className='level-btn l'+(i+1);
+      b.innerHTML='🏁 '+['第一关 · 新手赛道','第二关 · 高速狂飙','第三关 · 终极挑战'][i];
+    } else {
+      b.className='level-btn locked';
+      b.innerHTML='🔒 第'+(i+1)+'关 (未解锁)';
+    }
+  });
+}
+
+function showH(){
+  game.r=false;game.p=false;
+  homePage.style.display='flex';pausePage.style.display='none';celebPage.style.display='none';
+  updBtn();
+}
+
+// Fix: use direct onclick assignments
+document.getElementById('bL1').onclick=function(){startL(1);};
+document.getElementById('bL2').onclick=function(){startL(2);};
+document.getElementById('bL3').onclick=function(){startL(3);};
+document.getElementById('nextBtn').onclick=goNext;
+document.getElementById('btnPause').onclick=togP;
+document.getElementById('btnRestart').onclick=resL;
+document.getElementById('btnHome').onclick=goHm;
+document.getElementById('bHome').onclick=function(){winPage.style.display='none';showH();};
+
+function startL(lv){
+  if(!game.un[lv-1])return;
+  stopM();
+  game.l=lv;game.hp=99;game.sc=0;game.sb=0;game.tl=cfg[lv-1].tm;
+  enemies=[];fc=0;px=W/2-22;
+  homePage.style.display='none';pausePage.style.display='none';
+  celebPage.style.display='none';winPage.style.display='none';
+  hL.textContent='♥ '+game.hp;hS.textContent='⚡ 100%';hLv.textContent='🏁 '+game.l;
+  hSc.textContent='⭐ 0';hT.textContent='⏱ '+game.tl+'s';
+  game.r=true;game.p=false;playM(lv);
+  nextBtn.onclick=goNext;
+  if(!gid)loop();
+}
+
+function resL(){
+  stopM();
+  game.hp=99;game.sc=0;game.sb=0;game.tl=cfg[game.l-1].tm;
+  enemies=[];fc=0;px=W/2-22;
+  pausePage.style.display='none';game.p=false;game.r=true;
+  hL.textContent='♥ '+game.hp;hS.textContent='⚡ 100%';
+  hSc.textContent='⭐ 0';hT.textContent='⏱ '+game.tl+'s';
+  playM(game.l);
+}
+
+function goHm(){stopM();game.r=false;game.p=false;celebPage.style.display='none';showH();}
+function togP(){if(!game.r)return;game.p=!game.p;pausePage.style.display=game.p?'flex':'none';}
+
+function goNext(){
+  celebPage.style.display='none';nextBtn.style.display='block';
+  if(game.l>=3){beep(1047,0.3,'triangle',0.1);winPage.style.display='flex';}
+  else startL(game.l+1);
+}
+
+function lvEnd(){
+  stopM();game.r=false;game.p=false;
+  // Celebration sound
+  [523,587,659,784,659,784,1047].forEach(function(f,i){setTimeout(function(){beep(f,0.2,'square',0.06);},i*150);});
+  if(game.l<3){
+    game.un[game.l]=true;updBtn();
+    cTitle.innerHTML='🎉 第'+game.l+'关通过！';
+    cMsg.innerHTML='得分：<b>'+game.sc+'</b> &nbsp; 剩余 ♥'+game.hp+'条';
+    nextBtn.style.display='block';
+    nextBtn.innerHTML=game.l+1>=3?'➡️ 最终关':'➡️ 第'+(game.l+1)+'关';
+  } else {
+    cTitle.innerHTML='🏆 全部通关！';
+    cMsg.innerHTML='三关全部完成，太强了！';
+    nextBtn.style.display='block';
+    nextBtn.innerHTML='🎊 看庆祝！';
+    nextBtn.onclick=function(){
+      celebPage.style.display='none';
+      [523,659,784,1047,784,1047,1319,1047].forEach(function(f,i){setTimeout(function(){beep(f,0.25,'triangle',0.07);},i*200);});
+      winPage.style.display='flex';
+    };
+  }
+  celebPage.style.display='flex';
+}
+
+// ============ GAME LOOP ============
+function loop(){
+  if(!game.r){gid=null;return;}
+  if(game.p){gid=requestAnimationFrame(loop);return;}
+  var c=cfg[game.l-1];
+  // Timer
+  if(fc%60===0&&game.tl>0){
+    game.tl--;hT.textContent='⏱ '+game.tl+'s';
+    if(game.tl<=0){
+      stopM();game.r=false;
+      celebPage.style.display='flex';cTitle.innerHTML='⏰ 时间到！';
+      cMsg.innerHTML='得分：<b>'+game.sc+'</b>';
+      nextBtn.style.display='none';
+      setTimeout(function(){celebPage.style.display='none';showH();},2000);
+      draw();gid=null;return;
+    }
+  }
+  // Speed
+  if(keys.u)game.sb=Math.min(game.sb+0.25,8);
+  if(keys.d)game.sb=Math.max(game.sb-0.5,-2);
+  if(!keys.u&&!keys.d){game.sb*=0.98;if(Math.abs(game.sb)<0.05)game.sb=0;}
+  hS.textContent='⚡ '+Math.max(20,Math.min(300,Math.round(100+game.sb*25)))+'%';
+  // Move player
+  if(keys.l)px-=4.5;if(keys.r)px+=4.5;
+  px=Math.max(58,Math.min(W-58-pw,px));
+  // Spawn enemies
+  fc++;
+  if(fc%Math.max(8,Math.round(c.sr/(1+game.sb*0.1)))===0&&enemies.length<c.me){
+    var w=28+Math.random()*22,h=50+Math.random()*18,x=60+Math.random()*(W-120-w);
+    enemies.push({x:x,y:-h,w:w,h:h,sp:c.bs+game.sb*0.5+(Math.random()-0.5)*0.6,ci:Math.floor(Math.random()*carColors.length)});
+  }
+  // Update
+  for(var i=enemies.length-1;i>=0;i--){
+    var e=enemies[i];e.y+=e.sp;
+    // Collision
+    if(e.x<px+pw&&e.x+e.w>px&&e.y<py+ph&&e.y+e.h>py){
+      game.hp--;enemies.splice(i,1);
+      beep(180,0.15,'sawtooth',0.08);hL.textContent='♥ '+game.hp;
+      if(game.hp<=0){
+        stopM();game.r=false;
+        celebPage.style.display='flex';cTitle.innerHTML='💀 游戏结束';
+        cMsg.innerHTML='得分：<b>'+game.sc+'</b> &nbsp; 到达：第'+game.l+'关';
+        nextBtn.style.display='none';
+        setTimeout(function(){celebPage.style.display='none';showH();},2500);
+        draw();gid=null;return;
+      }
+      continue;
+    }
+    if(e.y>H){enemies.splice(i,1);game.sc+=10;hSc.textContent='⭐ '+game.sc;}
+  }
+  // Level complete check
+  if(game.sc>=c.ts){lvEnd();draw();gid=null;return;}
+  draw();
+  gid=requestAnimationFrame(loop);
+}
+
+// ============ DRAW ============
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // Road
+  ctx.fillStyle='#3a3a5c';ctx.fillRect(55,0,W-110,H);
+  ctx.fillStyle='#fff';ctx.fillRect(55,0,4,H);ctx.fillRect(W-59,0,4,H);
+  // Lane markings
+  ctx.fillStyle='#ffd93d';ro=(ro+2.5)%80;
+  for(var y=-80+ro;y<H;y+=80)ctx.fillRect(W/2-5,y,10,40);
+  // Draw enemies (each gets random color from palette)
+  for(var i=0;i<enemies.length;i++){
+    var e=enemies[i],col=carColors[e.ci%carColors.length];
+    var accent=['#ffeaa7','#dfe6e9','#fab1a0','#81ecec','#a29bfe','#55efc4','#fd79a8','#fdcb6e','#74b9ff','#ff7675','#00b894','#e17055'][e.ci%12];
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.2)';rnd(ctx,e.x+2,e.y+3,e.w,e.h,6);ctx.fill();
+    // Body
+    ctx.fillStyle=col;rnd(ctx,e.x,e.y,e.w,e.h,6);ctx.fill();
+    // Body highlight
+    var gr=ctx.createLinearGradient(e.x,e.y,e.x,e.y+e.h);
+    gr.addColorStop(0,'rgba(255,255,255,0.2)');gr.addColorStop(0.5,'rgba(255,255,255,0.05)');
+    gr.addColorStop(1,'rgba(0,0,0,0.15)');
+    ctx.fillStyle=gr;rnd(ctx,e.x,e.y,e.w,e.h,6);ctx.fill();
+    // Cabin
+    ctx.fillStyle='rgba(0,0,0,0.25)';rnd(ctx,e.x+4,e.y+e.h*0.2,e.w-8,e.h*0.4,4);ctx.fill();
+    // Windshield
+    ctx.fillStyle=accent;rnd(ctx,e.x+5,e.y+e.h*0.22,e.w-10,e.h*0.16,3);ctx.fill();
+    // Headlights
+    ctx.fillStyle='#fff';ctx.beginPath();
+    ctx.arc(e.x+6,e.y+3,3,0,Math.PI*2);ctx.arc(e.x+e.w-6,e.y+3,3,0,Math.PI*2);ctx.fill();
+    // Wheels
+    ctx.fillStyle='#2d3436';
+    ctx.fillRect(e.x-2,e.y+5,5,16);ctx.fillRect(e.x+e.w-3,e.y+5,5,16);
+    ctx.fillRect(e.x-2,e.y+e.h-20,5,16);ctx.fillRect(e.x+e.w-3,e.y+e.h-20,5,16);
+  }
+  // Draw player
+  drawCar(px,py,pw,ph,true);
+  // Speed bar
+  var cc=cfg[game.l-1],sr=Math.max(0.2,Math.min(1.5,1+game.sb/(cc?cc.bs:3)));
+  ctx.fillStyle='#333';ctx.fillRect(W/2-60,H-14,120,10);
+  ctx.fillStyle=game.sb>0?'#4ecdc4':'#ff6b6b';
+  ctx.fillRect(W/2-60,H-14,Math.min(120,120*sr/1.5),10);
+  ctx.fillStyle='#fff';ctx.font='9px Arial';ctx.textAlign='center';
+  ctx.fillText(Math.round(sr*100)+'%',W/2,H-5);
+  // Vertical progress bar (all levels)
+  var c2=cfg[game.l-1],pct=Math.min(Math.max(game.sc/c2.ts,0),1);
+  if(isNaN(pct))pct=0;
+  // Bar position - top left area, no background box
+  var barH=160,barX=12,barW=22,barY=210;
+  // Fill from bottom up
+  var fh=Math.round(barH*pct);
+  if(fh>0){
+    ctx.fillStyle='#e94560';
+    ctx.fillRect(barX,barY+barH-fh,barW,fh);
+    // Top highlight
+    ctx.fillStyle='#ffd93d';
+    ctx.fillRect(barX,barY+barH-fh,barW,2);
+  }
+  // Subtle border
+  ctx.strokeStyle='rgba(255,255,255,0.15)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(barX,barY,barW,barH);
+  // Top: 目标分
+  ctx.fillStyle='#ffd93d';ctx.font='bold 10px Arial';ctx.textAlign='center';
+  ctx.fillText(c2.ts,barX+14,barY-8);
+  ctx.fillStyle='#888';ctx.font='7px Arial';
+  ctx.fillText('目标',barX+14,barY-18);
+  // Bottom: 当前分
+  ctx.fillStyle='#6bcbff';ctx.font='bold 11px Arial';ctx.textAlign='center';
+  ctx.fillText(game.sc+'',barX+14,barY+barH+16);
+  ctx.fillStyle='#888';ctx.font='7px Arial';
+  ctx.fillText('当前',barX+14,barY+barH+26);
+  // Percentage in the middle
+  ctx.fillStyle='rgba(255,255,255,0.6)';ctx.font='bold 9px Arial';ctx.textAlign='center';
+  ctx.fillText(Math.round(pct*100)+'%',barX+14,barY+barH/2+3);
+  // Time warning
+  if(game.tl<=10&&game.tl>0){
+    ctx.fillStyle='#ff6b6b';ctx.font='bold 14px Arial';ctx.textAlign='center';
+    ctx.fillText('⚠️ '+game.tl+'s',W/2,40);
+  }
+}
+
+// ============ HELPERS ============
+function rnd(c,x,y,w,h,r){
+  if(typeof r=='number')r=[r];
+  var rr=r.map(function(v){return Math.min(v,Math.min(w,h)/2);});
+  var tl=rr[0]||0,tr=rr[1]||tl,br=rr[2]||tl,bl=rr[3]||tr;
+  c.moveTo(x+tl,y);c.lineTo(x+w-tr,y);
+  c.quadraticCurveTo(x+w,y,x+w,y+tr);
+  c.lineTo(x+w,y+h-br);c.quadraticCurveTo(x+w,y+h,x+w-br,y+h);
+  c.lineTo(x+bl,y+h);c.quadraticCurveTo(x,y+h,x,y+h-bl);
+  c.lineTo(x,y+tl);c.quadraticCurveTo(x,y,x+tl,y);
+}
+
+// ============ INPUT ============
+document.addEventListener('keydown',function(e){
+  if(e.key=='ArrowLeft')keys.l=true;
+  if(e.key=='ArrowRight')keys.r=true;
+  if(e.key=='ArrowUp')keys.u=true;
+  if(e.key=='ArrowDown')keys.d=true;
+  if(e.key=='Escape')togP();
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].indexOf(e.key)!==-1)e.preventDefault();
+});
+document.addEventListener('keyup',function(e){
+  if(e.key=='ArrowLeft')keys.l=false;
+  if(e.key=='ArrowRight')keys.r=false;
+  if(e.key=='ArrowUp')keys.u=false;
+  if(e.key=='ArrowDown')keys.d=false;
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].indexOf(e.key)!==-1)e.preventDefault();
+});
+var tx=null;
+document.getElementById('gc').addEventListener('touchstart',function(e){tx=e.touches[0].clientX;e.preventDefault();});
+document.getElementById('gc').addEventListener('touchmove',function(e){
+  if(tx===null)return;
+  px+=e.touches[0].clientX-tx;px=Math.max(58,Math.min(W-58-pw,px));
+  tx=e.touches[0].clientX;e.preventDefault();
+});
+document.getElementById('gc').addEventListener('touchend',function(){tx=null;});
+
+// ============ INIT ============
+ctx.fillStyle='#3a3a5c';ctx.fillRect(55,0,W-110,H);
+updBtn();
+</script>
+</body>
+</html>
